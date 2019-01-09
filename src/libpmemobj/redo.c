@@ -84,8 +84,10 @@ redo_log_store(PMEMobjpool *pop, struct redo_log *redo, size_t index,
 	ASSERTeq(offset & REDO_FINISH_FLAG, 0);
 	ASSERT(index < REDO_NUM_ENTRIES);
 
+	PMTest_exclude(&redo[index], sizeof(redo[index]));
 	PM_EQU((redo[index].offset), (offset));
 	PM_EQU((redo[index].value), (value));
+	PMTest_include(&redo[index], sizeof(redo[index]));
 }
 
 /*
@@ -108,8 +110,10 @@ redo_log_store_last(PMEMobjpool *pop, struct redo_log *redo, size_t index,
 	pop->persist(pop, redo, (index + 1) * sizeof(struct redo_log));
 
 	/* store and persist offset of last entry */
+	PMTest_exclude(&redo[index].offset, sizeof(redo[index].offset));
 	PM_EQU(redo[index].offset, (offset | REDO_FINISH_FLAG));
 	pop->persist(pop, &redo[index].offset, sizeof(redo[index].offset));
+	PMTest_include(&redo[index].offset, sizeof(redo[index].offset));
 }
 
 /*
@@ -126,8 +130,10 @@ redo_log_set_last(PMEMobjpool *pop, struct redo_log *redo, size_t index)
 	pop->persist(pop, redo, (index + 1) * sizeof(struct redo_log));
 	/* freud : start = redo, end = (index+1)*sizeof(redo_log) */
 	/* set finish flag of last entry and persist */
+	PMTest_exclude(&redo[index].offset, sizeof(redo[index].offset));
 	PM_OR_EQU((redo[index].offset), (REDO_FINISH_FLAG));
 	pop->persist(pop, &redo[index].offset, sizeof(redo[index].offset));
+	PMTest_include(&redo[index].offset, sizeof(redo[index].offset));
 }
 
 /*
@@ -147,10 +153,12 @@ redo_log_process(PMEMobjpool *pop, struct redo_log *redo,
 	while ((redo->offset & REDO_FINISH_FLAG) == 0) {
 		val = (uint64_t *)((uintptr_t)pop->addr + redo->offset);
 		VALGRIND_ADD_TO_TX(val, sizeof(*val));
+		PMTest_exclude(val, sizeof(*val));
 		PM_EQU((*val), (redo->value));
 		VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 		pop->flush(pop, val, sizeof(uint64_t));
+		PMTest_include(val, sizeof(*val));
 
 		redo++;
 	}
@@ -158,14 +166,18 @@ redo_log_process(PMEMobjpool *pop, struct redo_log *redo,
 	uint64_t offset = redo->offset & REDO_FLAG_MASK;
 	val = (uint64_t *)((uintptr_t)pop->addr + offset);
 	VALGRIND_ADD_TO_TX(val, sizeof(*val));
+	PMTest_exclude(val, sizeof(*val));
 	PM_EQU((*val), (redo->value));
 	VALGRIND_REMOVE_FROM_TX(val, sizeof(*val));
 
 	pop->persist(pop, val, sizeof(uint64_t));
-
+	PMTest_include(val, sizeof(*val));
+	
+	PMTest_exclude(&redo->offset, sizeof(redo->offset));
 	PM_EQU((redo->offset), (0)); 
 	/* freud : this means the offset from pop is 0 and the redo_log is over */
 	pop->persist(pop, &redo->offset, sizeof(redo->offset));
+	PMTest_include(&redo->offset, sizeof(redo->offset));
 }
 
 /*

@@ -106,19 +106,19 @@ rbtree_map_new(PMEMobjpool *pop, TOID(struct rbtree_map) *map, void *arg)
 		*map = TX_ZNEW(struct rbtree_map);
 
 		TOID(struct tree_map_node) s = TX_ZNEW(struct tree_map_node);
-		D_RW(s)->color = COLOR_BLACK;
-		D_RW(s)->parent = s;
-		D_RW(s)->slots[RB_LEFT] = s;
-		D_RW(s)->slots[RB_RIGHT] = s;
+		PM_EQU(D_RW(s)->color, COLOR_BLACK);
+		PM_EQU(D_RW(s)->parent, s);
+		PM_EQU(D_RW(s)->slots[RB_LEFT], s);
+		PM_EQU(D_RW(s)->slots[RB_RIGHT], s);
 
 		TOID(struct tree_map_node) r = TX_ZNEW(struct tree_map_node);
-		D_RW(r)->color = COLOR_BLACK;
-		D_RW(r)->parent = s;
-		D_RW(r)->slots[RB_LEFT] = s;
-		D_RW(r)->slots[RB_RIGHT] = s;
+		PM_EQU(D_RW(r)->color, COLOR_BLACK);
+		PM_EQU(D_RW(r)->parent, s);
+		PM_EQU(D_RW(r)->slots[RB_LEFT], s);
+		PM_EQU(D_RW(r)->slots[RB_RIGHT], s);
 
-		D_RW(*map)->sentinel = s;
-		D_RW(*map)->root = r;
+		PM_EQU(D_RW(*map)->sentinel, s);
+		PM_EQU(D_RW(*map)->root, r);
 	} TX_ONABORT {
 		ret = 1;
 	} TX_END
@@ -157,8 +157,8 @@ rbtree_map_clear(PMEMobjpool *pop, TOID(struct rbtree_map) map)
 
 		TX_FREE(D_RW(map)->sentinel);
 
-		D_RW(map)->root = TOID_NULL(struct tree_map_node);
-		D_RW(map)->sentinel = TOID_NULL(struct tree_map_node);
+		PM_EQU(D_RW(map)->root, TOID_NULL(struct tree_map_node));
+		PM_EQU(D_RW(map)->sentinel, TOID_NULL(struct tree_map_node));
 	} TX_END
 
 	return 0;
@@ -197,17 +197,17 @@ rbtree_map_rotate(TOID(struct rbtree_map) map,
 	TX_ADD(node);
 	TX_ADD(child);
 
-	D_RW(node)->slots[!c] = D_RO(child)->slots[c];
+	PM_EQU(D_RW(node)->slots[!c], D_RO(child)->slots[c]);
 
 	if (!TOID_EQUALS(D_RO(child)->slots[c], s))
 		TX_SET(D_RW(child)->slots[c], parent, node);
-
-	NODE_P(child) = NODE_P(node);
+	
+	PM_EQU(NODE_P(child), NODE_P(node));
 
 	TX_SET(NODE_P(node), slots[NODE_LOCATION(node)], child);
 
-	D_RW(child)->slots[c] = node;
-	D_RW(node)->parent = child;
+	PM_EQU(D_RW(child)->slots[c], node);
+	PM_EQU(D_RW(node)->parent, child);
 }
 
 /*
@@ -220,8 +220,8 @@ rbtree_map_insert_bst(TOID(struct rbtree_map) map, TOID(struct tree_map_node) n)
 	TOID(struct tree_map_node) *dst = &RB_FIRST(map);
 	TOID(struct tree_map_node) s = D_RO(map)->sentinel;
 
-	D_RW(n)->slots[RB_LEFT] = s;
-	D_RW(n)->slots[RB_RIGHT] = s;
+	PM_EQU(D_RW(n)->slots[RB_LEFT], s);
+	PM_EQU(D_RW(n)->slots[RB_RIGHT], s);
 
 	while (!NODE_IS_NULL(*dst)) {
 		parent = *dst;
@@ -231,7 +231,7 @@ rbtree_map_insert_bst(TOID(struct rbtree_map) map, TOID(struct tree_map_node) n)
 	TX_SET(n, parent, parent);
 
 	pmemobj_tx_add_range_direct(dst, sizeof(*dst));
-	*dst = n;
+	PM_EQU(*dst, n);
 }
 
 /*
@@ -273,12 +273,12 @@ rbtree_map_insert(PMEMobjpool *pop, TOID(struct rbtree_map) map,
 
 	TX_BEGIN(pop) {
 		TOID(struct tree_map_node) n = TX_ZNEW(struct tree_map_node);
-		D_RW(n)->key = key;
-		D_RW(n)->value = value;
+		PM_EQU(D_RW(n)->key, key);
+		PM_EQU(D_RW(n)->value, value);
 
 		rbtree_map_insert_bst(map, n);
 
-		D_RW(n)->color = COLOR_RED;
+		PM_EQU(D_RW(n)->color, COLOR_RED);
 		while (D_RO(NODE_P(n))->color == COLOR_RED)
 			n = rbtree_map_recolor(map, n,
 					NODE_LOCATION(NODE_P(n)));
@@ -421,10 +421,10 @@ rbtree_map_remove(PMEMobjpool *pop, TOID(struct rbtree_map) map, uint64_t key)
 
 		if (!TOID_EQUALS(y, n)) {
 			TX_ADD(y);
-			D_RW(y)->slots[RB_LEFT] = D_RO(n)->slots[RB_LEFT];
-			D_RW(y)->slots[RB_RIGHT] = D_RO(n)->slots[RB_RIGHT];
-			D_RW(y)->parent = D_RO(n)->parent;
-			D_RW(y)->color = D_RO(n)->color;
+			PM_EQU(D_RW(y)->slots[RB_LEFT], D_RO(n)->slots[RB_LEFT]);
+			PM_EQU(D_RW(y)->slots[RB_RIGHT], D_RO(n)->slots[RB_RIGHT]);
+			PM_EQU(D_RW(y)->parent, D_RO(n)->parent);
+			PM_EQU(D_RW(y)->color, D_RO(n)->color);
 			TX_SET(D_RW(n)->slots[RB_LEFT], parent, y);
 			TX_SET(D_RW(n)->slots[RB_RIGHT], parent, y);
 
@@ -550,6 +550,5 @@ rbtree_map_remove_free(PMEMobjpool *pop, TOID(struct rbtree_map) map,
 	} TX_ONABORT {
 		ret = 1;
 	} TX_END
-
 	return ret;
 }

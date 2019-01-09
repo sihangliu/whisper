@@ -199,14 +199,20 @@ hm_tx_insert(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 	int ret = 0;
 	TX_BEGIN(pop) {
 		TX_ADD_FIELD(D_RO(hashmap)->buckets, bucket[h]);
+		//TX_ADD_FIELD(buckets, bucket[h]);
 		TX_ADD_FIELD(hashmap, count);
-
+		
 		TOID(struct entry) e = TX_NEW(struct entry);
+		PMTest_assign(&(D_RW(e)->key), sizeof(struct entry));
+		(D_RW(e)->key) = (key);
+		(D_RW(e)->value) = (value);
+		(D_RW(e)->next) = (D_RO(buckets)->bucket[h]);
+		/*
 		PM_EQU((D_RW(e)->key), (key));
 		PM_EQU((D_RW(e)->value), (value));
 		PM_EQU((D_RW(e)->next), (D_RO(buckets)->bucket[h]));
+		*/
 		PM_EQU((D_RW(buckets)->bucket[h]), (e));
-
 		PM_EQU((D_RW(hashmap)->count), (D_RW(hashmap)->count+1));
 		num++;
 	} TX_ONABORT {
@@ -257,10 +263,10 @@ hm_tx_remove(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap, uint64_t key)
 		TX_ADD_FIELD(hashmap, count);
 
 		if (TOID_IS_NULL(prev))
-			D_RW(buckets)->bucket[h] = D_RO(var)->next;
+			PM_EQU(D_RW(buckets)->bucket[h], D_RO(var)->next);
 		else
-			D_RW(prev)->next = D_RO(var)->next;
-		D_RW(hashmap)->count--;
+			PM_EQU(D_RW(prev)->next, D_RO(var)->next);
+		PM_EQU(D_RW(hashmap)->count, D_RO(hashmap)->count - 1);
 		TX_FREE(var);
 	} TX_ONABORT {
 		fprintf(stderr, "transaction aborted: %s\n",

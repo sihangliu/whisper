@@ -285,11 +285,11 @@ flush_clflush(const void *addr, size_t len)
 	 * Loop through cache-line-size (typically 64B) aligned chunks
 	 * covering the given range.
 	 */
+	PM_FLUSH((addr), (len), (len));
 	for (uptr = (uintptr_t)addr & ~(FLUSH_ALIGN - 1);
 		uptr < (uintptr_t)addr + len; uptr += FLUSH_ALIGN)
 	{
 		_mm_clflush((char *)uptr);
-		PM_FLUSH((uptr), (64), (64));
 	}
 }
 
@@ -307,6 +307,7 @@ flush_clwb(const void *addr, size_t len)
 	 * Loop through cache-line-size (typically 64B) aligned chunks
 	 * covering the given range.
 	 */
+	PM_FLUSH((addr), (len), (len));
 	for (uptr = (uintptr_t)addr & ~(FLUSH_ALIGN - 1);
 		uptr < (uintptr_t)addr + len; uptr += FLUSH_ALIGN) {
 		_mm_clwb((char *)uptr);
@@ -327,6 +328,7 @@ flush_clflushopt(const void *addr, size_t len)
 	 * Loop through cache-line-size (typically 64B) aligned chunks
 	 * covering the given range.
 	 */
+	PM_FLUSH((addr), (len), (len));
 	for (uptr = (uintptr_t)addr & ~(FLUSH_ALIGN - 1);
 		uptr < (uintptr_t)addr + len; uptr += FLUSH_ALIGN) {
 		_mm_clflushopt((char *)uptr);

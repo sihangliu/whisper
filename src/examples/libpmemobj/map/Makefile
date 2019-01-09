@@ -33,6 +33,11 @@
 #
 # examples/libpmemobj/map/Makefile -- build the map example
 #
+
+#ifndef ITEM_SIZE
+ITEM_SIZE=64
+#endif
+
 TOP := $(dir $(lastword $(MAKEFILE_LIST)))../../../../
 include $(TOP)/src/common.inc
 
@@ -60,6 +65,7 @@ include ../../Makefile.inc
 CFLAGS += -I../
 CFLAGS += -I../hashmap
 CFLAGS += -I../tree_map
+CFLAGS += -DITEM_SIZE=$(ITEM_SIZE)
 
 mapcli: mapcli.o libmap.a
 data_store: data_store.o libmap.a

@@ -145,6 +145,7 @@ ctree_map_insert_leaf(struct tree_map_entry *p,
 	struct tree_map_entry e, int diff)
 {
 	TOID(struct tree_map_node) new_node = TX_NEW(struct tree_map_node);
+	//isPersistent(&(D_RW(new_node)->diff), sizeof(D_RW(new_node)->diff));
 	PM_EQU(D_RW(new_node)->diff, diff);
 
 	int d = BIT_IS_SET(e.key, D_RO(new_node)->diff);
@@ -168,6 +169,7 @@ ctree_map_insert_leaf(struct tree_map_entry *p,
 	PM_EQU(D_RW(new_node)->entries[!d], *p);
 
 	pmemobj_tx_add_range_direct(p, sizeof(*p));
+	
 	PM_EQU(p->key, 0);
 	PM_EQU(p->slot, new_node.oid);
 }
@@ -295,8 +297,8 @@ ctree_map_remove(PMEMobjpool *pop, TOID(struct ctree_map) map, uint64_t key)
 	if (parent == NULL) { /* root */
 		TX_BEGIN(pop) {
 			pmemobj_tx_add_range_direct(leaf, sizeof(*leaf));
-			leaf->key = 0;
-			leaf->slot = OID_NULL;
+			PM_EQU(leaf->key, 0);
+			PM_EQU(leaf->slot, OID_NULL);
 		} TX_END
 	} else {
 		/*
@@ -312,8 +314,8 @@ ctree_map_remove(PMEMobjpool *pop, TOID(struct ctree_map) map, uint64_t key)
 			TOID(struct tree_map_node) node;
 			TOID_ASSIGN(node, parent->slot);
 			pmemobj_tx_add_range_direct(dest, sizeof(*dest));
-			*dest = D_RW(node)->entries[
-				D_RO(node)->entries[0].key == leaf->key];
+			PM_EQU(*dest, D_RW(node)->entries[
+				D_RO(node)->entries[0].key == leaf->key]);
 
 			TX_FREE(node);
 		} TX_END
@@ -360,7 +362,7 @@ ctree_map_foreach_node(struct tree_map_entry e,
 					cb, arg) == 0)
 			ctree_map_foreach_node(D_RO(node)->entries[1], cb, arg);
 	} else { /* leaf */
-		ret = cb(e.key, e.slot, arg);
+		PM_EQU(ret, cb(e.key, e.slot, arg));
 	}
 
 	return ret;

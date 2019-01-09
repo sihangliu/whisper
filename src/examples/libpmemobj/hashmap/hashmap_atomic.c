@@ -116,7 +116,7 @@ create_buckets(PMEMobjpool *pop, void *ptr, void *arg)
 	pmemobj_memset_persist(pop, &b->bucket, 0,
 			b->nbuckets * sizeof(b->bucket[0]));
 	pmemobj_persist(pop, &b->nbuckets, sizeof(b->nbuckets));
-
+	PMTest_isPersistent(&b->nbuckets, sizeof(b->nbuckets));
 	return 0;
 }
 
@@ -127,11 +127,18 @@ static void
 create_hashmap(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 		uint32_t seed)
 {
+
+	PMTest_assign(&(D_RW(hashmap)->seed), 20);
 	PM_EQU(D_RW(hashmap)->seed, seed);
 	PM_EQU(D_RW(hashmap)->hash_fun_a, (uint32_t)(1000.0 * rand() / RAND_MAX) + 1);
 	PM_EQU(D_RW(hashmap)->hash_fun_b, (uint32_t)(100000.0 * rand() / RAND_MAX));
 	PM_EQU(D_RW(hashmap)->hash_fun_p, HASH_FUNC_COEFF_P);
-
+	/*
+	PM_EQU(D_RW(hashmap)->seed, seed);
+	PM_EQU(D_RW(hashmap)->hash_fun_a, (uint32_t)(1000.0 * rand() / RAND_MAX) + 1);
+	PM_EQU(D_RW(hashmap)->hash_fun_b, (uint32_t)(100000.0 * rand() / RAND_MAX));
+	PM_EQU(D_RW(hashmap)->hash_fun_p, HASH_FUNC_COEFF_P);
+	*/
 	size_t len = INIT_BUCKETS_NUM;
 	size_t sz = sizeof(struct buckets) +
 			len * sizeof(struct entries_head);
@@ -143,6 +150,7 @@ create_hashmap(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 	}
 
 	pmemobj_persist(pop, D_RW(hashmap), sizeof(*D_RW(hashmap)));
+	PMTest_isPersistent(D_RW(hashmap), sizeof(*D_RW(hashmap)));
 }
 
 /*
@@ -204,6 +212,9 @@ hm_atomic_rebuild_finish(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap)
 	PM_EQU(D_RW(hashmap)->buckets_tmp.oid.off, 0);
 	pmemobj_persist(pop, &D_RW(hashmap)->buckets_tmp,
 			sizeof(D_RW(hashmap)->buckets_tmp));
+	
+	PMTest_isPersistent(&D_RW(hashmap)->buckets, sizeof(D_RW(hashmap)->buckets));
+	PMTest_isPersistent(&D_RW(hashmap)->buckets_tmp, sizeof(D_RW(hashmap)->buckets_tmp));
 }
 
 /*
@@ -275,15 +286,24 @@ hm_atomic_insert(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 	pmemobj_persist(pop, &D_RW(hashmap)->count,
 			sizeof(D_RW(hashmap)->count));
 
+	PMTest_isPersistedBefore(&D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty), &D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count));
+
+
 	PM_EQU(D_RW(hashmap)->count_dirty, 0);
 	pmemobj_persist(pop, &D_RW(hashmap)->count_dirty,
 			sizeof(D_RW(hashmap)->count_dirty));
+
+	PMTest_isPersistedBefore(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count), &D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
+
 
 	num++;
 	if (num > MAX_HASHSET_THRESHOLD ||
 			(num > MIN_HASHSET_THRESHOLD &&
 			D_RO(hashmap)->count > 2 * D_RO(buckets)->nbuckets))
 		hm_atomic_rebuild(pop, hashmap, D_RW(buckets)->nbuckets * 2);
+
+	PMTest_isPersistent(&D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
+	PMTest_isPersistent(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count));
 
 	return 0;
 }
@@ -311,7 +331,7 @@ hm_atomic_remove(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 	if (TOID_IS_NULL(var))
 		return OID_NULL;
 
-	D_RW(hashmap)->count_dirty = 1;
+	PM_EQU(D_RW(hashmap)->count_dirty, 1);
 	pmemobj_persist(pop, &D_RW(hashmap)->count_dirty,
 			sizeof(D_RW(hashmap)->count_dirty));
 
@@ -322,16 +342,24 @@ hm_atomic_remove(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap,
 		return OID_NULL;
 	}
 
-	D_RW(hashmap)->count--;
+
+	PM_EQU(D_RW(hashmap)->count, D_RO(hashmap)->count - 1);
 	pmemobj_persist(pop, &D_RW(hashmap)->count,
 			sizeof(D_RW(hashmap)->count));
 
-	D_RW(hashmap)->count_dirty = 0;
+	PMTest_isPersistedBefore(&D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty), &D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count));
+
+	PM_EQU(D_RW(hashmap)->count_dirty, 0);
 	pmemobj_persist(pop, &D_RW(hashmap)->count_dirty,
 			sizeof(D_RW(hashmap)->count_dirty));
 
 	if (D_RO(hashmap)->count < D_RO(buckets)->nbuckets)
 		hm_atomic_rebuild(pop, hashmap, D_RO(buckets)->nbuckets / 2);
+
+	PMTest_isPersistedBefore(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count), &D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
+
+	PMTest_isPersistent(&D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
+	PMTest_isPersistent(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count));
 
 	return D_RO(var)->value;
 }
@@ -454,20 +482,23 @@ hm_atomic_init(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap)
 		if (TOID_EQUALS(D_RO(hashmap)->buckets,
 				D_RO(hashmap)->buckets_tmp)) {
 			/* see comment in hm_rebuild_finish */
-			D_RW(hashmap)->buckets_tmp.oid.off = 0;
+			PM_EQU(D_RW(hashmap)->buckets_tmp.oid.off, 0);
 			pmemobj_persist(pop, &D_RW(hashmap)->buckets_tmp,
 					sizeof(D_RW(hashmap)->buckets_tmp));
 		} else if (TOID_IS_NULL(D_RW(hashmap)->buckets)) {
-			D_RW(hashmap)->buckets = D_RW(hashmap)->buckets_tmp;
+			PM_EQU(D_RW(hashmap)->buckets, D_RW(hashmap)->buckets_tmp);
 			pmemobj_persist(pop, &D_RW(hashmap)->buckets,
 					sizeof(D_RW(hashmap)->buckets));
 			/* see comment in hm_rebuild_finish */
-			D_RW(hashmap)->buckets_tmp.oid.off = 0;
+			PM_EQU(D_RW(hashmap)->buckets_tmp.oid.off, 0);
 			pmemobj_persist(pop, &D_RW(hashmap)->buckets_tmp,
 					sizeof(D_RW(hashmap)->buckets_tmp));
 		} else {
 			hm_atomic_rebuild_finish(pop, hashmap);
 		}
+		PMTest_isPersistedBefore(&D_RW(hashmap)->buckets, sizeof(D_RW(hashmap)->buckets), &D_RW(hashmap)->buckets_tmp.oid.off, sizeof(D_RW(hashmap)->buckets_tmp.oid.off));
+		PMTest_isPersistent(&D_RW(hashmap)->buckets, sizeof(D_RW(hashmap)->buckets));
+		PMTest_isPersistent(&D_RW(hashmap)->buckets_tmp.oid.off, sizeof(D_RW(hashmap)->buckets_tmp.oid.off));
 	}
 
 	/* handle insert or remove interruption */
@@ -483,13 +514,18 @@ hm_atomic_init(PMEMobjpool *pop, TOID(struct hashmap_atomic) hashmap)
 
 		printf("old count: %lu, new count: %lu\n",
 			D_RO(hashmap)->count, cnt);
-		D_RW(hashmap)->count = cnt;
+		PM_EQU(D_RW(hashmap)->count, cnt);
 		pmemobj_persist(pop, &D_RW(hashmap)->count,
 				sizeof(D_RW(hashmap)->count));
 
-		D_RW(hashmap)->count_dirty = 0;
+		PM_EQU(D_RW(hashmap)->count_dirty, 0);
 		pmemobj_persist(pop, &D_RW(hashmap)->count_dirty,
 				sizeof(D_RW(hashmap)->count_dirty));
+
+
+		PMTest_isPersistent(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count));
+		PMTest_isPersistent(&D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
+		PMTest_isPersistedBefore(&D_RW(hashmap)->count, sizeof(D_RW(hashmap)->count), &D_RW(hashmap)->count_dirty, sizeof(D_RW(hashmap)->count_dirty));
 	}
 
 	return 0;

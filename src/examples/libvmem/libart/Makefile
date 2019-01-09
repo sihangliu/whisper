@@ -49,9 +49,11 @@
 PROGS = arttree
 LIBRARIES = art
 
-include ../../Makefile.inc
-
+#### MODIFIED_BY_PMTEST ####
 LIBS = -lvmem -pthread -lart
+
+include ../../Makefile.inc
+#### END_MODIFIED_BY_PMTEST ####
 
 $(PROGS): | $(DYNAMIC_LIBRARIES)
 $(PROGS): LDFLAGS += -Wl,-rpath=. -L.

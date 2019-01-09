@@ -224,11 +224,14 @@ heap_chunk_write_footer(PMEMobjpool *pop, struct chunk_header *hdr,
 		return;
 
 	VALGRIND_DO_MAKE_MEM_UNDEFINED(pop, hdr + size_idx - 1, sizeof(*hdr));
-
 	struct chunk_header f = *hdr;
+	PMTest_exclude(&f, sizeof(f));
+	PMTest_exclude(hdr + size_idx - 1, sizeof(*(hdr + size_idx - 1)));
 	PM_EQU((f.type), (CHUNK_TYPE_FOOTER));
 	PM_EQU((f.size_idx), (size_idx));
 	PM_EQU((*(hdr + size_idx - 1)), (f));
+	PMTest_include(&f, sizeof(f));
+	PMTest_include(hdr + size_idx - 1, sizeof(*(hdr + size_idx - 1)));
 	/* no need to persist, footers are recreated in heap_populate_buckets */
 	VALGRIND_SET_CLEAN(hdr + size_idx - 1, sizeof(f));
 }
@@ -246,9 +249,11 @@ heap_chunk_init(PMEMobjpool *pop, struct chunk_header *hdr,
 		.size_idx = size_idx
 	};
 	VALGRIND_DO_MAKE_MEM_UNDEFINED(pop, hdr, sizeof(*hdr));
-
+	
+	PMTest_exclude(hdr, sizeof(*hdr));
 	PM_EQU((*hdr), (nhdr)); /* write the entire header (8 bytes) at once */
 	pop->persist(pop, hdr, sizeof(*hdr));
+	PMTest_include(hdr, sizeof(*hdr));
 
 	heap_chunk_write_footer(pop, hdr, size_idx);
 }
@@ -285,6 +290,7 @@ heap_init_run(PMEMobjpool *pop, struct bucket *b, struct chunk_header *hdr,
 
 	/* add/remove chunk_run and chunk_header to valgrind transaction */
 	VALGRIND_ADD_TO_TX(run, sizeof(*run));
+	PMTest_exclude(run, sizeof(*run));
 	PM_EQU((run->block_size), (b->unit_size));
 	pop->persist(pop, &run->block_size, sizeof(run->block_size));
 
@@ -299,14 +305,17 @@ heap_init_run(PMEMobjpool *pop, struct bucket *b, struct chunk_header *hdr,
 	PM_MEMSET((run->bitmap), (0), (sizeof(uint64_t) * (nval - 1)));
 	PM_EQU((run->bitmap[nval - 1]), (r->bitmap_lastval));
 	VALGRIND_REMOVE_FROM_TX(run, sizeof(*run));
+	PMTest_include(run, sizeof(*run));
 
 	pop->persist(pop, run->bitmap, sizeof(run->bitmap));
 
 	VALGRIND_ADD_TO_TX(hdr, sizeof(*hdr));
+	PMTest_exclude(hdr, sizeof(*hdr));
 	PM_EQU((hdr->type), (CHUNK_TYPE_RUN));
 	VALGRIND_REMOVE_FROM_TX(hdr, sizeof(*hdr));
 
 	pop->persist(pop, hdr, sizeof(*hdr));
+	PMTest_include(hdr, sizeof(*hdr));
 }
 
 /*
@@ -414,10 +423,12 @@ static void
 heap_set_run_bucket(struct chunk_run *run, struct bucket *b)
 {
 	VALGRIND_ADD_TO_TX(&run->bucket_vptr, sizeof(run->bucket_vptr));
+	PMTest_exclude(&run->bucket_vptr, sizeof(run->bucket_vptr));
 	/* mark the bucket associated with this run */
 	PM_EQU((run->bucket_vptr), ((uint64_t)b));
 	VALGRIND_SET_CLEAN(&run->bucket_vptr, sizeof(run->bucket_vptr));
 	VALGRIND_REMOVE_FROM_TX(&run->bucket_vptr, sizeof(run->bucket_vptr));
+	PMTest_include(&run->bucket_vptr, sizeof(run->bucket_vptr));
 }
 
 /*

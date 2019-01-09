@@ -137,8 +137,8 @@ static void
 btree_map_insert_item_at(TOID(struct tree_map_node) node, int pos,
 	struct tree_map_node_item item)
 {
-	D_RW(node)->items[pos] = item;
-	D_RW(node)->n += 1;
+	PM_EQU(D_RW(node)->items[pos], item);
+	PM_EQU(D_RW(node)->n, D_RO(node)->n + 1);
 }
 
 /*
@@ -149,7 +149,7 @@ btree_map_insert_empty(TOID(struct btree_map) map,
 	struct tree_map_node_item item)
 {
 	TX_ADD_FIELD(map, root);
-	D_RW(map)->root = TX_ZNEW(struct tree_map_node);
+	PM_EQU(D_RW(map)->root, TX_ZNEW(struct tree_map_node));
 
 	btree_map_insert_item_at(D_RO(map)->root, 0, item);
 }
@@ -164,14 +164,14 @@ btree_map_insert_node(TOID(struct tree_map_node) node, int p,
 {
 	TX_ADD(node);
 	if (D_RO(node)->items[p].key != 0) { /* move all existing data */
-		memmove(&D_RW(node)->items[p + 1], &D_RW(node)->items[p],
+		PM_MEMMOVE(&D_RW(node)->items[p + 1], &D_RW(node)->items[p],
 		sizeof(struct tree_map_node_item) * ((BTREE_ORDER - 2 - p)));
 
-		memmove(&D_RW(node)->slots[p + 1], &D_RW(node)->slots[p],
+		PM_MEMMOVE(&D_RW(node)->slots[p + 1], &D_RW(node)->slots[p],
 		sizeof(TOID(struct tree_map_node)) * ((BTREE_ORDER - 1 - p)));
 	}
-	D_RW(node)->slots[p] = left;
-	D_RW(node)->slots[p + 1] = right;
+	PM_EQU(D_RW(node)->slots[p], left);
+	PM_EQU(D_RW(node)->slots[p + 1], right);
 	btree_map_insert_item_at(node, p, item);
 }
 
@@ -184,22 +184,24 @@ btree_map_create_split_node(TOID(struct tree_map_node) node,
 {
 	TOID(struct tree_map_node) right = TX_ZNEW(struct tree_map_node);
 
+	TX_ADD(node); // a bug
+
 	int c = (BTREE_ORDER / 2);
 	*m = D_RO(node)->items[c - 1]; /* select median item */
-	D_RW(node)->items[c - 1] = EMPTY_ITEM;
+	PM_EQU(D_RW(node)->items[c - 1], EMPTY_ITEM);
 
 	/* move everything right side of median to the new node */
 	for (int i = c; i < BTREE_ORDER; ++i) {
 		if (i != BTREE_ORDER - 1) {
-			D_RW(right)->items[D_RW(right)->n++] =
-				D_RO(node)->items[i];
-
-			D_RW(node)->items[i] = EMPTY_ITEM;
+			PM_EQU(D_RW(right)->items[D_RW(right)->n],
+				D_RO(node)->items[i]);
+			PM_EQU(D_RW(right)->n, D_RO(right)->n + 1);
+			PM_EQU(D_RW(node)->items[i], EMPTY_ITEM);
 		}
-		D_RW(right)->slots[i - c] = D_RO(node)->slots[i];
-		D_RW(node)->slots[i] = TOID_NULL(struct tree_map_node);
+		PM_EQU(D_RW(right)->slots[i - c], D_RO(node)->slots[i]);
+		PM_EQU(D_RW(node)->slots[i], TOID_NULL(struct tree_map_node));
 	}
-	D_RW(node)->n = c - 1;
+	PM_EQU(D_RW(node)->n, c - 1);
 
 	return right;
 }
@@ -224,13 +226,13 @@ btree_map_find_dest_node(TOID(struct btree_map) map,
 		} else { /* replacing root node, the tree grows in height */
 			TOID(struct tree_map_node) up =
 				TX_ZNEW(struct tree_map_node);
-			D_RW(up)->n = 1;
-			D_RW(up)->items[0] = m;
-			D_RW(up)->slots[0] = n;
-			D_RW(up)->slots[1] = right;
+			PM_EQU(D_RW(up)->n, 1);
+			PM_EQU(D_RW(up)->items[0], m);
+			PM_EQU(D_RW(up)->slots[0], n);
+			PM_EQU(D_RW(up)->slots[1], right);
 
 			TX_ADD_FIELD(map, root);
-			D_RW(map)->root = up;
+			PM_EQU(D_RW(map)->root, up);
 			n = up;
 		}
 	}
@@ -266,7 +268,7 @@ btree_map_insert_item(TOID(struct tree_map_node) node, int p,
 {
 	TX_ADD(node);
 	if (D_RO(node)->items[p].key != 0) {
-		memmove(&D_RW(node)->items[p + 1], &D_RW(node)->items[p],
+		PM_MEMMOVE(&D_RW(node)->items[p + 1], &D_RW(node)->items[p],
 		sizeof(struct tree_map_node_item) * ((BTREE_ORDER - 2 - p)));
 	}
 	btree_map_insert_item_at(node, p, item);
@@ -321,19 +323,19 @@ btree_map_rotate_right(TOID(struct tree_map_node) rsb,
 
 	/* the first element of the right sibling is the new separator */
 	TX_ADD_FIELD(parent, items[p]);
-	D_RW(parent)->items[p] = D_RO(rsb)->items[0];
+	PM_EQU(D_RW(parent)->items[p], D_RO(rsb)->items[0]);
 
 	/* the nodes are not necessarily leafs, so copy also the slot */
 	TX_ADD_FIELD(node, slots[D_RO(node)->n]);
-	D_RW(node)->slots[D_RO(node)->n] = D_RO(rsb)->slots[0];
+	PM_EQU(D_RW(node)->slots[D_RO(node)->n], D_RO(rsb)->slots[0]);
 
 	TX_ADD(rsb);
-	D_RW(rsb)->n -= 1; /* it loses one element, but still > min */
+	PM_EQU(D_RW(rsb)->n, D_RO(rsb)->n - 1); /* it loses one element, but still > min */
 
 	/* move all existing elements back by one array slot */
-	memmove(D_RW(rsb)->items, D_RO(rsb)->items + 1,
+	PM_MEMMOVE(D_RW(rsb)->items, D_RO(rsb)->items + 1,
 		sizeof(struct tree_map_node_item) * (D_RO(rsb)->n));
-	memmove(D_RW(rsb)->slots, D_RO(rsb)->slots + 1,
+	PM_MEMMOVE(D_RW(rsb)->slots, D_RO(rsb)->slots + 1,
 		sizeof(TOID(struct tree_map_node)) * (D_RO(rsb)->n + 1));
 }
 
@@ -351,18 +353,18 @@ btree_map_rotate_left(TOID(struct tree_map_node) lsb,
 
 	/* the last element of the left sibling is the new separator */
 	TX_ADD_FIELD(parent, items[p - 1]);
-	D_RW(parent)->items[p - 1] = D_RO(lsb)->items[D_RO(lsb)->n - 1];
+	PM_EQU(D_RW(parent)->items[p - 1], D_RO(lsb)->items[D_RO(lsb)->n - 1]);
 
 	TX_ADD(node);
 	/* rotate the node children */
-	memmove(D_RW(node)->slots + 1, D_RO(node)->slots,
+	PM_MEMMOVE(D_RW(node)->slots + 1, D_RO(node)->slots,
 		sizeof(TOID(struct tree_map_node)) * (D_RO(node)->n));
 
 	/* the nodes are not necessarily leafs, so copy also the slot */
-	D_RW(node)->slots[0] = D_RO(lsb)->slots[D_RO(lsb)->n];
+	PM_EQU(D_RW(node)->slots[0], D_RO(lsb)->slots[D_RO(lsb)->n]);
 
 	TX_ADD_FIELD(lsb, n);
-	D_RW(lsb)->n -= 1; /* it loses one element, but still > min */
+	PM_EQU(D_RW(lsb)->n, D_RO(lsb)->n - 1); /* it loses one element, but still > min */
 }
 
 /*
@@ -377,33 +379,34 @@ btree_map_merge(TOID(struct btree_map) map, TOID(struct tree_map_node) rn,
 
 	TX_ADD(node);
 	/* add separator to the deficient node */
-	D_RW(node)->items[D_RW(node)->n++] = sep;
-
+	PM_EQU(D_RW(node)->items[D_RW(node)->n], sep);
+	PM_EQU(D_RW(node)->n, D_RO(node)->n + 1);
+	
 	/* copy right sibling data to node */
-	memcpy(&D_RW(node)->items[D_RO(node)->n], D_RO(rn)->items,
+	PM_MEMCPY(&D_RW(node)->items[D_RO(node)->n], D_RO(rn)->items,
 	sizeof(struct tree_map_node_item) * D_RO(rn)->n);
-	memcpy(&D_RW(node)->slots[D_RO(node)->n], D_RO(rn)->slots,
+	PM_MEMCPY(&D_RW(node)->slots[D_RO(node)->n], D_RO(rn)->slots,
 	sizeof(TOID(struct tree_map_node)) * (D_RO(rn)->n + 1));
 
-	D_RW(node)->n += D_RO(rn)->n;
+	PM_EQU(D_RW(node)->n, D_RO(node)->n + D_RO(rn)->n);
 
 	TX_FREE(rn); /* right node is now empty */
 
 	TX_ADD(parent);
-	D_RW(parent)->n -= 1;
+	PM_EQU(D_RW(parent)->n, D_RO(parent)->n - 1);
 
 	/* move everything to the right of the separator by one array slot */
-	memmove(D_RW(parent)->items + p, D_RW(parent)->items + p + 1,
+	PM_MEMMOVE(D_RW(parent)->items + p, D_RW(parent)->items + p + 1,
 	sizeof(struct tree_map_node_item) * (D_RO(parent)->n - p));
 
-	memmove(D_RW(parent)->slots + p + 1, D_RW(parent)->slots + p + 2,
+	PM_MEMMOVE(D_RW(parent)->slots + p + 1, D_RW(parent)->slots + p + 2,
 	sizeof(TOID(struct tree_map_node)) * (D_RO(parent)->n - p + 1));
 
 	/* if the parent is empty then the tree shrinks in height */
 	if (D_RO(parent)->n == 0 && TOID_EQUALS(parent, D_RO(map)->root)) {
 		TX_ADD(map);
 		TX_FREE(D_RO(map)->root);
-		D_RW(map)->root = node;
+		PM_EQU(D_RW(map)->root, node);
 	}
 }
 
@@ -455,15 +458,15 @@ btree_map_remove_from_node(TOID(struct btree_map) map,
 	if (TOID_IS_NULL(D_RO(node)->slots[0])) { /* leaf */
 		TX_ADD(node);
 		if (D_RO(node)->n == 1 || p == BTREE_ORDER - 2)
-			D_RW(node)->items[p] = EMPTY_ITEM;
+			PM_EQU(D_RW(node)->items[p], EMPTY_ITEM);
 		else if (D_RO(node)->n != 1) {
-			memmove(&D_RW(node)->items[p],
+			PM_MEMMOVE(&D_RW(node)->items[p],
 				&D_RW(node)->items[p + 1],
 				sizeof(struct tree_map_node_item) *
 				(D_RO(node)->n - p));
 		}
 
-		D_RW(node)->n -= 1;
+		PM_EQU(D_RW(node)->n, D_RO(node)->n - 1);
 		return;
 	}
 
@@ -474,7 +477,7 @@ btree_map_remove_from_node(TOID(struct btree_map) map,
 		btree_map_get_leftmost_leaf(map, rchild, &lp);
 
 	TX_ADD_FIELD(node, items[p]);
-	D_RW(node)->items[p] = D_RO(lm)->items[0];
+	PM_EQU(D_RW(node)->items[p], D_RO(lm)->items[0]);
 
 	btree_map_remove_from_node(map, lm, lp, 0);
 

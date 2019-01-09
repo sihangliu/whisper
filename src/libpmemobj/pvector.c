@@ -224,10 +224,13 @@ pvector_push_back(struct pvector_context *ctx)
 			ASSERTeq(util_is_zeroed(ctx->vec,
 				sizeof(*ctx->vec)), 1);
 
+			PMTest_exclude(&ctx->vec->arrays[0],
+				sizeof(ctx->vec->arrays[0]));
 			PM_EQU((ctx->vec->arrays[0]), (OBJ_PTR_TO_OFF(ctx->pop, \
 				&ctx->vec->embedded)));
-
 			ctx->pop->persist(ctx->pop, &ctx->vec->arrays[0],
+				sizeof(ctx->vec->arrays[0]));
+			PMTest_include(&ctx->vec->arrays[0],
 				sizeof(ctx->vec->arrays[0]));
 		} else {
 			size_t arr_size = sizeof(uint64_t) *

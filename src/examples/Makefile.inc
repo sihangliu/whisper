@@ -46,6 +46,15 @@ CFLAGS = -std=gnu99 -ggdb -Wall -Werror $(EXTRA_CFLAGS)
 LDFLAGS = -Wl,-rpath=$(LIBDIR) -L$(LIBDIR) $(EXTRA_LDFLAGS)
 INCS = -I$(INCDIR) -I.
 
+#### ADDED_BY_PMTEST ####
+PMTEST_DIR := $(TOP)/../../pmtest
+PMTEST_INCS := -I$(PMTEST_DIR)/include
+PMTEST_LIBS := -L$(PMTEST_DIR)/build/libs -Wl,-rpath=$(PMTEST_DIR)/build/libs -lpmtest
+INCS += $(PMTEST_INCS)
+LIBS += -lpmemobj
+LIBS += $(PMTEST_LIBS)
+#### END_ADDED_BY_PMTEST ####
+
 LINKER=$(CC)
 ifeq ($(COMPILE_LANG), cpp)
 LINKER=$(CXX)

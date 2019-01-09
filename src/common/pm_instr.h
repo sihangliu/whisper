@@ -27,6 +27,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "pmtest.h"
+#include "latency.h"
+
 #define LOC1 	__func__	/* str ["0"]: can be __func__, __FILE__ */	
 #define LOC2	__LINE__        /* int [0]  : can be __LINE__ */
 #define m_out stdout
@@ -236,8 +239,10 @@ extern unsigned long long get_tot_epoch_count(void);
                         sizeof((pm_dst)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
-            pm_dst = y;                             	\
+			PMTest_assign((void *)(&(pm_dst)), sizeof((pm_dst)));	\
+	        pm_dst = y;                             \
     })
+				
 #define PM_EQU_DW(pm_dst, y)                            \
     ({                                                  \
             PM_TRACE("%d:%llu:%s:%p:%lu:%s:%d\n",       \
@@ -247,6 +252,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         sizeof((pm_dst)),               \
                         LOC1,                           \
                         LOC2);                          \
+			PMTest_assign((void *)(&(pm_dst)), sizeof((pm_dst)));	\
             pm_dst = y;                                 \
     })
 
@@ -273,6 +279,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         sizeof((pm_dst)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(&(pm_dst)), sizeof((pm_dst)));	\
             pm_dst |= y;                            	\
     })
 
@@ -297,6 +304,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         sizeof((pm_dst)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(&(pm_dst)), sizeof((pm_dst)));	\
             pm_dst += y;                            	\
     })
 
@@ -309,6 +317,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         sizeof((pm_dst)),           	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(&(pm_dst)), sizeof((pm_dst)));	\
             pm_dst -= y;                            	\
     })
 
@@ -322,6 +331,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         (unsigned long)sz,          	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (sz));	\
             memset(pm_dst, val, sz);                	\
     }) 
 
@@ -334,6 +344,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         (unsigned long)sz,          	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (sz));	\
             memset(pm_dst, val, sz);                	\
     }) 
 
@@ -346,7 +357,21 @@ extern unsigned long long get_tot_epoch_count(void);
                         (unsigned long)sz,          	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (sz));	\
             memcpy(pm_dst, src, sz);                	\
+    })              
+
+#define PM_MEMMOVE(pm_dst, src, sz)                  	\
+    ({                                              	\
+            PM_TRACE("%d:%llu:%s:%p:%lu:%s:%d\n",    	\
+			TENTRY_ID,		    	\
+                        PM_WRT_MARKER,              	\
+                        (pm_dst),                   	\
+                        (unsigned long)sz,          	\
+                        LOC1,                   	\
+                        LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (sz));	\
+            memmove(pm_dst, src, sz);                	\
     })              
 
 #define PM_DMEMCPY(pm_dst, src, sz)                  	\
@@ -358,6 +383,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         (unsigned long)sz,          	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (sz));	\
             memcpy(pm_dst, src, sz);                	\
     })              
 
@@ -370,6 +396,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         (int)strlen((src)),    	    	\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (strlen(src)));	\
             strcpy(pm_dst, src);                    	\
     })
 
@@ -382,6 +409,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         (int)len,    	    		\
                         LOC1,                   	\
                         LOC2);                  	\
+			PMTest_assign((void *)(pm_dst), (len));	\
             strncpy(pm_dst, src, len);                 	\
     })
 
@@ -444,6 +472,7 @@ extern unsigned long long get_tot_epoch_count(void);
                         LOC1,                   	\
                         LOC2);                  	\
         &(pm_src);                                  	\
+		assign((void *)(&pm_src), (sizeof(pm_src)));	\
     })    
 
 /* PM Reads to a range of memory */
@@ -499,6 +528,7 @@ extern unsigned long long get_tot_epoch_count(void);
                     LOC1,                       	\
                     LOC2                        	\
                 );                                  	\
+			PMTest_flush((void *)(pm_dst), count);     	\
     })
 #define PM_COMMIT()                                 	\
     ({                                              	\
@@ -507,6 +537,7 @@ extern unsigned long long get_tot_epoch_count(void);
 			PM_COMMIT_MARKER,    	    	\
                     	LOC1, 				\
 			LOC2);            		\
+	 	PMTest_commit();	\
     })
 #define PM_BARRIER()                                	\
     ({                                              	\
@@ -515,6 +546,7 @@ extern unsigned long long get_tot_epoch_count(void);
 			PM_BARRIER_MARKER,   	    	\
                     	LOC1, 				\
 			LOC2);            		\
+	 	PMTest_barrier();	\
     })
 #define PM_FENCE()                                  	\
     ({                                              	\
@@ -523,6 +555,7 @@ extern unsigned long long get_tot_epoch_count(void);
 			PM_FENCE_MARKER,     	    	\
                     	LOC1, 				\
 			LOC2);            		\
+	 	PMTest_fence();	\
     })
 
 #endif /* PM_INSTR_H */

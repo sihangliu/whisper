@@ -123,6 +123,14 @@ CFLAGS += $(shell $(PKG_CONFIG) --cflags glib-2.0)
 LIBS += $(shell $(PKG_CONFIG) --libs glib-2.0)
 endif
 
+#### ADDED_BY_PMTEST ####
+#PMTEST_DIR := $(TOP)/../../pmtest
+#PMTEST_INCS := -I$(PMTEST_DIR)/include
+#PMTEST_LIBS := -L$(PMTEST_DIR)/build/libs -Wl,-rpath=$(PMTEST_DIR)/build/libs -lpmtest
+CFLAGS += $(PMTEST_INCS)
+LIBS += $(PMTEST_LIBS)
+#### END_ADDED_BY_PMTEST ####
+
 LIBMAP_DIR=../examples/libpmemobj/map
 LIBMAP=$(LIBMAP_DIR)/libmap.a
 

@@ -33,6 +33,14 @@
 
 TOP := $(dir $(lastword $(MAKEFILE_LIST)))..
 
+#### ADDED_BY_PMTEST ####
+PMTEST_DIR := $(TOP)/../../pmtest
+PMTEST_INCS := -I$(PMTEST_DIR)/include
+PMTEST_LIBS := -L$(PMTEST_DIR)/build/libs -Wl,-rpath=$(PMTEST_DIR)/build/libs -lpmtest
+#EXTRA_CFLAGS += $(PMTEST_INCS)
+#EXTRA_LDFLAGS += $(PMTEST_LIBS)
+#### END_ADDED_BY_PMTEST ####
+
 LN = ln
 OBJCOPY = objcopy
 MKDIR = mkdir

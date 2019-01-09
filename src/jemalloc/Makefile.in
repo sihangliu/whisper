@@ -23,11 +23,11 @@ abs_srcroot := @abs_srcroot@
 abs_objroot := @abs_objroot@
 
 # Build parameters.
-CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include
-CFLAGS := @CFLAGS@
+CPPFLAGS := @CPPFLAGS@ -I$(srcroot)include -I$(objroot)include -I$(srcroot)../../../../pmtest/include
+CFLAGS := @CFLAGS@ -I$(srcroot)../../../../pmtest/include
 LDFLAGS := @LDFLAGS@
 EXTRA_LDFLAGS := @EXTRA_LDFLAGS@
-LIBS := @LIBS@
+LIBS := @LIBS@ -L$(srcroot)../../../../pmtest/build/libs -Wl,-rpath=$(srcroot)../../../../pmtest/build/libs -lpmtest
 RPATH_EXTRA := @RPATH_EXTRA@
 SO := @so@
 IMPORTLIB := @importlib@

@@ -63,8 +63,10 @@
 #define SET_TX_VAR(_pop, _var, _nval)\
 do {\
 	VALGRIND_ADD_TO_TX(&(_var), sizeof(_var));\
+	PMTest_exclude(&(_var), sizeof(_var));\
 	PM_EQU((_var), (_nval));\
 	VALGRIND_REMOVE_FROM_TX(&(_var), sizeof(_var));\
+	PMTest_include(&(_var), sizeof(_var));\
 } while (0)
 
 struct tx_data {
@@ -178,6 +180,7 @@ constructor_tx_alloc(PMEMobjpool *pop, void *ptr, size_t usable_size, void *arg)
 
 	/* temporarily add the OOB header */
 	VALGRIND_ADD_TO_TX(oobh, OBJ_OOB_SIZE);
+	PMTest_exclude(oobh, OBJ_OOB_SIZE);
 
 	/*
 	 * no need to flush and persist because this
@@ -189,6 +192,7 @@ constructor_tx_alloc(PMEMobjpool *pop, void *ptr, size_t usable_size, void *arg)
 	PM_MEMSET((oobh->unused), (0), (sizeof(oobh->unused)));
 
 	VALGRIND_REMOVE_FROM_TX(oobh, OBJ_OOB_SIZE);
+	PMTest_include(oobh, OBJ_OOB_SIZE);
 
 	/* do not report changes to the new object */
 	VALGRIND_ADD_TO_TX(ptr, usable_size);
@@ -277,6 +281,9 @@ constructor_tx_add_range(PMEMobjpool *pop, void *ptr,
 	VALGRIND_ADD_TO_TX(oobh,
 				sizeof(struct tx_range) + args->size
 				+ OBJ_OOB_SIZE);
+	PMTest_exclude(oobh,
+				sizeof(struct tx_range) + args->size
+				+ OBJ_OOB_SIZE);
 
 	PM_EQU(oobh->size, OBJ_INTERNAL_OBJECT_MASK);
 	pop->flush(pop, &oobh->size, sizeof(oobh->size));
@@ -294,6 +301,9 @@ constructor_tx_add_range(PMEMobjpool *pop, void *ptr,
 	VALGRIND_REMOVE_FROM_TX(oobh,
 				sizeof(struct tx_range) + args->size
 				+ OBJ_OOB_SIZE);
+	PMTest_include(oobh,
+				sizeof(struct tx_range) + args->size
+				+ OBJ_OOB_SIZE);
 
 	/* do not report changes to the original object */
 	VALGRIND_ADD_TO_TX(src, args->size);
@@ -307,8 +317,10 @@ constructor_tx_add_range(PMEMobjpool *pop, void *ptr,
 static inline void
 tx_set_state(PMEMobjpool *pop, struct lane_tx_layout *layout, uint64_t state)
 {
+	PMTest_exclude(&layout->state, sizeof(layout->state));
 	PM_EQU((layout->state), (state));
 	pop->persist(pop, &layout->state, sizeof(layout->state));
+	PMTest_include(&layout->state, sizeof(layout->state));
 }
 
 /*
@@ -318,9 +330,11 @@ static void
 tx_clear_vec_entry(PMEMobjpool *pop, uint64_t *entry)
 {
 	VALGRIND_ADD_TO_TX(entry, sizeof(*entry));
+	PMTest_exclude(entry, sizeof(*entry));
 	PM_EQU((*entry), (0));
 	pop->persist(pop, entry, sizeof(*entry));
 	VALGRIND_REMOVE_FROM_TX(entry, sizeof(*entry));
+	PMTest_include(entry, sizeof(*entry));
 }
 
 /*
@@ -1009,7 +1023,9 @@ tx_alloc_common(size_t size, type_num_t type_num, pmalloc_constr constructor)
 	if (OBJ_OID_IS_NULL(retoid) ||
 		ctree_insert_unlocked(lane->ranges, retoid.off, size) != 0)
 		goto err_oom;
-
+	
+//	printf("@@@@@@@@ lane->pop=%llx, entry_offset=%llx, retoid.off=%llx\n", lane->pop, entry_offset, retoid.off);
+	PMTest_transactionAdd((void*)((uint64_t)lane->pop + (uint64_t)retoid.off), size);
 	return retoid;
 
 err_oom:
@@ -1457,6 +1473,8 @@ constructor_tx_range_cache(PMEMobjpool *pop, void *ptr,
 	/* temporarily add the object copy to the transaction */
 	VALGRIND_ADD_TO_TX(oobh,
 		OBJ_OOB_SIZE + sizeof(struct tx_range_cache));
+	PMTest_exclude(oobh,
+		OBJ_OOB_SIZE + sizeof(struct tx_range_cache));
 
 	PM_EQU(oobh->size, OBJ_INTERNAL_OBJECT_MASK);
 	pop->flush(pop, &oobh->size, sizeof(oobh->size));
@@ -1464,6 +1482,8 @@ constructor_tx_range_cache(PMEMobjpool *pop, void *ptr,
 	pop->memset_persist(pop, ptr, 0, sizeof(struct tx_range_cache));
 
 	VALGRIND_REMOVE_FROM_TX(oobh,
+		OBJ_OOB_SIZE + sizeof(struct tx_range_cache));
+	PMTest_include(oobh,
 		OBJ_OOB_SIZE + sizeof(struct tx_range_cache));
 
 	return 0;
@@ -1534,6 +1554,8 @@ pmemobj_tx_add_small(struct tx_add_range_args *args)
 	struct tx_range *range = (struct tx_range *)&cache->range[n];
 	VALGRIND_ADD_TO_TX(range,
 		sizeof(struct tx_range) + MAX_CACHED_RANGE_SIZE);
+	PMTest_exclude(range,
+		sizeof(struct tx_range) + MAX_CACHED_RANGE_SIZE);
 
 	/* this isn't transactional so we have to keep the order */
 	void *src = OBJ_OFF_TO_PTR(pop, args->offset);
@@ -1548,6 +1570,8 @@ pmemobj_tx_add_small(struct tx_add_range_args *args)
 		sizeof(range->offset) + sizeof(range->size));
 
 	VALGRIND_REMOVE_FROM_TX(range,
+		sizeof(struct tx_range) + MAX_CACHED_RANGE_SIZE);
+	PMTest_include(range,
 		sizeof(struct tx_range) + MAX_CACHED_RANGE_SIZE);
 
 	return 0;
@@ -1568,6 +1592,7 @@ pmemobj_tx_add_common(struct tx_add_range_args *args)
 		ERR("object outside of heap");
 		return pmemobj_tx_abort_err(EINVAL);
 	}
+	
 
 	struct lane_tx_runtime *runtime = tx.section->runtime;
 
@@ -1664,6 +1689,8 @@ pmemobj_tx_add_range_direct(const void *ptr, size_t size)
 		.offset = (uint64_t)((char *)ptr - (char *)lane->pop),
 		.size = size
 	};
+	//PMTEST
+	PMTest_transactionAdd(ptr, size);
 
 	return pmemobj_tx_add_common(&args);
 }
@@ -1693,6 +1720,8 @@ pmemobj_tx_add_range(PMEMoid oid, uint64_t hoff, size_t size)
 		.offset = oid.off + hoff,
 		.size = size
 	};
+	//PMTEST
+	PMTest_transactionAdd((void*)((uint64_t)args.offset + (uint64_t)args.pop), args.size);
 
 	/*
 	 * If internal type is in undo log it means
@@ -1834,8 +1863,10 @@ pmemobj_tx_free(PMEMoid oid)
 			ERR("free undo log too large");
 			return pmemobj_tx_abort_err(ENOMEM);
 		}
+		PMTest_exclude(entry, sizeof(*entry));
 		PM_EQU((*entry), (oid.off)); /* freud : making an entry in the undo log */
 		lane->pop->persist(lane->pop, entry, sizeof(*entry));
+		PMTest_include(entry, sizeof(*entry));
 	} else {
 		struct oob_header *oobh = OOB_HEADER_FROM_OID(lane->pop, oid);
 #ifdef USE_VG_PMEMCHECK

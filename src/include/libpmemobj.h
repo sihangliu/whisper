@@ -179,9 +179,16 @@ static const PMEMoid OID_NULL = { 0, 0 };
  */
 #ifndef _MSC_VER
 
+/*
 #define TOID_ASSIGN(o, value)(\
 {\
 	PM_EQU((o).oid, value);\
+	(o); \
+})
+*/
+#define TOID_ASSIGN(o, value)(\
+{\
+	(o).oid = value;\
 	(o); /* to avoid "error: statement with no effect" */\
 })
 
@@ -1042,8 +1049,11 @@ pmemobj_tx_add_range_direct(p, sizeof(*p))
 pmemobj_tx_add_range_direct(&(p)->field, sizeof((p)->field))
 
 
-#define TX_NEW(t)\
-((TOID(t))pmemobj_tx_alloc(sizeof(t), TOID_TYPE_NUM(t)))
+#define TX_NEW(t) \
+({ \
+	TOID(t) ret = (TOID(t))pmemobj_tx_alloc(sizeof(t), TOID_TYPE_NUM(t));\
+	ret; \
+})
 
 #define TX_ALLOC(t, size)\
 ((TOID(t))pmemobj_tx_alloc(size, TOID_TYPE_NUM(t)))
@@ -1085,24 +1095,24 @@ pmemobj_tx_free((o).oid)
 
 #define TX_SET(o, field, value) (\
 	TX_ADD_FIELD(o, field),\
-	D_RW(o)->field = value)
+	PM_EQU(D_RW(o)->field, value))
 
 #define TX_SET_DIRECT(p, field, value) (\
 	TX_ADD_FIELD_DIRECT(p, field),\
-	(p)->field = value)
+	PM_EQU((p)->field, value))
 
 static inline void *
 TX_MEMCPY(void *dest, const void *src, size_t num)
 {
 	pmemobj_tx_add_range_direct(dest, num);
-	return memcpy(dest, src, num);
+	return PM_MEMCPY(dest, src, num);
 }
 
 static inline void *
 TX_MEMSET(void *dest, int c, size_t num)
 {
 	pmemobj_tx_add_range_direct(dest, num);
-	return memset(dest, c, num);
+	return PM_MEMSET(dest, c, num);
 }
 
 #ifdef __cplusplus
